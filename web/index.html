@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Predictor de precios de autos</title>
+  <meta name="description" content="Modelo de machine learning que estima el precio de un auto, entrenado con scikit-learn y ejecutado en el navegador.">
+  <style>
+    :root { --fondo:#f6f7f9; --tarjeta:#fff; --texto:#1d2330; --suave:#5d6677; --borde:#dde1e8; --acento:#ea580c; }
+    @media (prefers-color-scheme: dark) { :root { --fondo:#0f1115; --tarjeta:#181b21; --texto:#e7e9ee; --suave:#9aa3b2; --borde:#2a2f38; --acento:#fb923c; } }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,sans-serif; background:var(--fondo); color:var(--texto); }
+    main { max-width:900px; margin:0 auto; padding:24px 16px 48px; }
+    .sub, footer, small { color:var(--suave); } a { color:var(--acento); }
+    .grilla { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-top:16px; }
+    section { background:var(--tarjeta); border:1px solid var(--borde); border-radius:12px; padding:16px; }
+    h2 { margin:0 0 12px; font-size:1.05rem; }
+    label { display:grid; gap:4px; margin-bottom:10px; font-size:.95rem; }
+    select, input { font:inherit; padding:7px 9px; border-radius:8px; border:1px solid var(--borde); background:var(--fondo); color:var(--texto); }
+    .precio { font-size:2.6rem; font-weight:700; font-variant-numeric:tabular-nums; margin:4px 0; color:var(--acento); }
+    table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+    th, td { padding:7px 6px; border-bottom:1px solid var(--borde); text-align:right; } th:first-child, td:first-child { text-align:left; }
+    tr.elegido td { font-weight:600; }
+    .barra { height:8px; border-radius:4px; background:var(--acento); }
+    footer { margin-top:24px; font-size:.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Predictor de precios de autos</h1>
+  <p class="sub">Modelo de machine learning entrenado con scikit-learn que corre en tu navegador. Elegí las características y estima el precio.</p>
+  <div class="grilla">
+    <section>
+      <h2>Características</h2>
+      <form id="form"></form>
+    </section>
+    <section>
+      <h2>Precio estimado</h2>
+      <div class="precio" id="precio">–</div>
+      <small id="rango"></small>
+      <h2 style="margin-top:20px">Qué pesa más</h2>
+      <small>Cambio en el precio al subir cada variable un desvío estándar.</small>
+      <table id="importancia"></table>
+    </section>
+  </div>
+  <section style="margin-top:16px">
+    <h2>Comparación de modelos (validación cruzada, 5 folds)</h2>
+    <div style="overflow-x:auto"><table id="metricas"></table></div>
+    <p><small>Se usa el de mejor R². El dataset es el clásico <a href="https://archive.ics.uci.edu/dataset/10/automobile">Automobile de UCI</a>: <span id="n"></span> autos del mercado de EE.UU. de 1985, con precios en dólares de esa época.</small></p>
+  </section>
+  <footer><a href="https://github.com/nbbz95/predictor-precios-autos">Código del entrenamiento</a>.</footer>
+</main>
+<script type="module">
+  import { predecir } from './predictor.js'
+
+  const ETIQUETAS = {
+    make: 'Marca', 'fuel-type': 'Combustible', aspiration: 'Aspiración', 'body-style': 'Carrocería', 'drive-wheels': 'Tracción',
+    'engine-size': 'Cilindrada (pulg³)', horsepower: 'Potencia (HP)', 'curb-weight': 'Peso (lb)', width: 'Ancho (pulg)',
+    length: 'Largo (pulg)', 'city-mpg': 'Consumo ciudad (mpg)', 'highway-mpg': 'Consumo ruta (mpg)',
+  }
+  const usd = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  const modelo = await (await fetch('modelo.json')).json()
+  const form = document.getElementById('form')
+  const inicial = modelo.casos_de_prueba[0].entrada
+
+  for (const [nombre, cats] of Object.entries(modelo.categoricas)) {
+    const opciones = Object.keys(cats).map((c) => `<option ${c === inicial[nombre] ? 'selected' : ''}>${c}</option>`).join('')
+    form.insertAdjacentHTML('beforeend', `<label>${ETIQUETAS[nombre]}<select name="${nombre}">${opciones}</select></label>`)
+  }
+  for (const [nombre, p] of Object.entries(modelo.numericas)) {
+    const valor = inicial[nombre] ?? p.mediana
+    form.insertAdjacentHTML('beforeend', `<label>${ETIQUETAS[nombre]}<input type="number" name="${nombre}" min="${p.min}" max="${p.max}" step="any" value="${valor}"></label>`)
+  }
+
+  function actualizar() {
+    const entrada = Object.fromEntries(new FormData(form))
+    const precio = predecir(modelo, entrada)
+    const mape = modelo.metricas.find((m) => m.modelo.startsWith('Ridge')).mape_pct / 100
+    document.getElementById('precio').textContent = usd.format(precio)
+    document.getElementById('rango').textContent = `Error típico ±${Math.round(mape * 100)}%: entre ${usd.format(precio * (1 - mape))} y ${usd.format(precio * (1 + mape))} (USD de 1985)`
+  }
+  form.addEventListener('input', actualizar)
+  actualizar()
+
+  const maxEfecto = Math.max(...modelo.importancia.map((i) => Math.abs(i.efecto_pct)))
+  document.getElementById('importancia').innerHTML = modelo.importancia.map((i) => `
+    <tr><td>${ETIQUETAS[i.variable]}</td><td style="width:40%"><div class="barra" style="width:${Math.abs(i.efecto_pct) / maxEfecto * 100}%;opacity:${i.efecto_pct < 0 ? .45 : 1}"></div></td><td>${i.efecto_pct > 0 ? '+' : ''}${i.efecto_pct}%</td></tr>`).join('')
+
+  const mejor = Math.max(...modelo.metricas.map((m) => m.r2))
+  document.getElementById('metricas').innerHTML = '<tr><th>Modelo</th><th>R²</th><th>Error medio</th><th>Error %</th></tr>' + modelo.metricas.map((m) => `
+    <tr class="${m.r2 === mejor ? 'elegido' : ''}"><td>${m.modelo}</td><td>${m.r2.toFixed(3)}</td><td>${usd.format(m.mae)}</td><td>${m.mape_pct}%</td></tr>`).join('')
+  document.getElementById('n').textContent = modelo.n_autos
+</script>
+</body>
+</html>

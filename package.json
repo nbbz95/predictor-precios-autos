@@ -1,0 +1,8 @@
+{
+  "name": "predictor-precios-autos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/predictor.test.mjs"
+  }
+}
