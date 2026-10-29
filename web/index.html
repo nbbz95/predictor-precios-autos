@@ -84,11 +84,11 @@
 
   const maxEfecto = Math.max(...modelo.importancia.map((i) => Math.abs(i.efecto_pct)))
   document.getElementById('importancia').innerHTML = modelo.importancia.map((i) => `
-    <tr><td>${ETIQUETAS[i.variable]}</td><td style="width:40%"><div class="barra" style="width:${Math.abs(i.efecto_pct) / maxEfecto * 100}%;opacity:${i.efecto_pct < 0 ? .45 : 1}"></div></td><td>${i.efecto_pct > 0 ? '+' : ''}${i.efecto_pct}%</td></tr>`).join('')
+    <tr><td>${ETIQUETAS[i.variable]}</td><td style="width:40%"><div class="barra" style="width:${Math.abs(i.efecto_pct) / maxEfecto * 100}%;opacity:${i.efecto_pct < 0 ? .45 : 1}"></div></td><td>${i.efecto_pct > 0 ? '+' : ''}${i.efecto_pct.toLocaleString('es-AR')}%</td></tr>`).join('')
 
   const mejor = Math.max(...modelo.metricas.map((m) => m.r2))
   document.getElementById('metricas').innerHTML = '<tr><th>Modelo</th><th>R²</th><th>Error medio</th><th>Error %</th></tr>' + modelo.metricas.map((m) => `
-    <tr class="${m.r2 === mejor ? 'elegido' : ''}"><td>${m.modelo}</td><td>${m.r2.toFixed(3)}</td><td>${usd.format(m.mae)}</td><td>${m.mape_pct}%</td></tr>`).join('')
+    <tr class="${m.r2 === mejor ? 'elegido' : ''}"><td>${m.modelo}</td><td>${m.r2.toLocaleString('es-AR', { minimumFractionDigits: 3 })}</td><td>${usd.format(m.mae)}</td><td>${m.mape_pct.toLocaleString('es-AR', { minimumFractionDigits: 1 })}%</td></tr>`).join('')
   document.getElementById('n').textContent = modelo.n_autos
 </script>
 </body>
